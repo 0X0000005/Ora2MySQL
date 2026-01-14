@@ -16,9 +16,17 @@ func main() {
 	outputFile := flag.String("o", "", "输出文件路径（MySQL DDL），不指定则输出到标准输出")
 	webMode := flag.Bool("web", false, "启动 Web 服务器模式")
 	port := flag.Int("port", 8080, "Web 服务器端口（默认 8080）")
+	version := flag.Bool("v", false, "显示版本信息")
 	help := flag.Bool("h", false, "显示帮助信息")
 
 	flag.Parse()
+
+	// 显示版本信息
+	if *version {
+		fmt.Printf("Ora2MySQL %s\n", server.Version)
+		fmt.Println("Oracle to MySQL DDL 转换工具")
+		return
+	}
 
 	// 显示帮助信息
 	if *help {
@@ -89,6 +97,7 @@ func printHelp() {
 	fmt.Println("  -o     输出文件路径（可选），不指定则输出到标准输出")
 	fmt.Println("  -web   启动 Web 服务器模式")
 	fmt.Println("  -port  Web 服务器端口（默认 8080）")
+	fmt.Println("  -v     显示版本信息")
 	fmt.Println("  -h     显示此帮助信息")
 	fmt.Println()
 	fmt.Println("示例:")
