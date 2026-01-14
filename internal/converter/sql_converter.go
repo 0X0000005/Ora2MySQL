@@ -23,6 +23,9 @@ func ConvertSQLStatement(sql string) string {
 	// 转换外连接语法
 	converted = convertOracleJoins(converted)
 
+	// 转换 NULLS FIRST/NULLS LAST
+	converted = convertNullsOrdering(converted)
+
 	// 恢复 MyBatis 语法
 	result := restoreMyBatisSyntax(converted, placeholders)
 
@@ -318,4 +321,26 @@ func convertListagg(sql string) string {
 		}
 		return match
 	})
+}
+
+// convertNullsOrdering 转换 NULLS FIRST/NULLS LAST 排序
+func convertNullsOrdering(sql string) string {
+	// ORDER BY column DESC NULLS LAST → ORDER BY CASE WHEN column IS NULL THEN 1 ELSE 0 END, column DESC
+	// ORDER BY column ASC NULLS FIRST → ORDER BY column ASC (MySQL default)
+	// ORDER BY column DESC NULLS FIRST → ORDER BY CASE WHEN column IS NULL THEN 0 ELSE 1 END, column DESC
+	// ORDER BY column ASC NULLS LAST → ORDER BY CASE WHEN column IS NULL THEN 1 ELSE 0 END, column ASC
+
+	// NULLS LAST (降序)
+	sql = regexp.MustCompile(`(?i)(\w+)\s+DESC\s+NULLS\s+LAST`).ReplaceAllString(sql, "CASE WHEN $1 IS NULL THEN 1 ELSE 0 END, $1 DESC")
+
+	// NULLS FIRST (降序)
+	sql = regexp.MustCompile(`(?i)(\w+)\s+DESC\s+NULLS\s+FIRST`).ReplaceAllString(sql, "CASE WHEN $1 IS NULL THEN 0 ELSE 1 END, $1 DESC")
+
+	// NULLS LAST (升序或无方向)
+	sql = regexp.MustCompile(`(?i)(\w+)(\s+ASC)?\s+NULLS\s+LAST`).ReplaceAllString(sql, "CASE WHEN $1 IS NULL THEN 1 ELSE 0 END, $1$2")
+
+	// NULLS FIRST (升序，MySQL 默认行为，可以简化)
+	sql = regexp.MustCompile(`(?i)(\w+)(\s+ASC)?\s+NULLS\s+FIRST`).ReplaceAllString(sql, "$1$2")
+
+	return sql
 }
