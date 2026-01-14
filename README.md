@@ -1,4 +1,4 @@
-# Oracle 转 MySQL DDL 工具
+# Ora2MySQL
 
 这是一个用 Go 语言编写的命令行工具，用于将 Oracle DDL 语句转换为 MySQL 兼容的 DDL 语句。
 
@@ -13,7 +13,6 @@
 - ✅ 支持块注释（`/* ... */`）的正确解析
 - ✅ 支持 ALTER TABLE MODIFY 语句（修改列约束）
 - ✅ 智能输入验证（拒绝非法输入，兼容 MyBatis 文件）
-- ✅ 全中文注释
 
 ## 数据类型转换对照表
 
