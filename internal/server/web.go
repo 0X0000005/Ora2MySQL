@@ -18,6 +18,9 @@ import (
 //go:embed static
 var staticFiles embed.FS
 
+// Version 版本号
+const Version = "v1.2.0"
+
 // ConvertRequest 转换请求结构
 type ConvertRequest struct {
 	DDL string `json:"ddl"` // Oracle DDL 内容
