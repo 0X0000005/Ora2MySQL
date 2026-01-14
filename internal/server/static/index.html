@@ -233,15 +233,30 @@
 
         .result-content {
             background: #f8f9fa;
-            padding: 20px;
             border-radius: 10px;
             border: 1px solid #e0e0e0;
             max-height: 400px;
             overflow-y: auto;
+            display: flex;
+        }
+
+        .result-line-numbers {
+            background: #f5f5f5;
+            padding: 20px 10px;
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #999;
+            user-select: none;
+            min-width: 50px;
+            white-space: pre;
+            border-right: 1px solid #e0e0e0;
         }
 
         .result-content pre {
+            flex: 1;
             margin: 0;
+            padding: 20px;
             font-family: 'Courier New', monospace;
             font-size: 14px;
             color: #333;
@@ -435,6 +450,7 @@
                         </div>
                     </div>
                     <div class="result-content">
+                        <div class="result-line-numbers" id="resultLineNumbers">1</div>
                         <pre id="mysqlOutput"></pre>
                     </div>
                 </div>
@@ -695,6 +711,9 @@
             const convertedLines = converted.split('\n');
             const outputElement = document.getElementById('mysqlOutput');
 
+            // 更新结果行号
+            updateResultLineNumbers(convertedLines.length);
+
             // Simple line-by-line comparison
             let htmlOutput = '';
             convertedLines.forEach((line, index) => {
@@ -710,6 +729,31 @@
 
             outputElement.innerHTML = htmlOutput;
         }
+
+        // 更新结果行号
+        function updateResultLineNumbers(lineCount) {
+            const lineNumbers = document.getElementById('resultLineNumbers');
+            if (lineNumbers) {
+                let numbers = '';
+                for (let i = 1; i <= lineCount; i++) {
+                    numbers += i + '\n';
+                }
+                lineNumbers.textContent = numbers;
+            }
+        }
+
+        // 同步结果区域滚动
+        window.addEventListener('load', function () {
+            const resultContent = document.querySelector('.result-content');
+            if (resultContent) {
+                resultContent.addEventListener('scroll', function () {
+                    const lineNumbers = document.getElementById('resultLineNumbers');
+                    if (lineNumbers) {
+                        lineNumbers.scrollTop = this.scrollTop;
+                    }
+                });
+            }
+        });
 
         // HTML 转义
         function escapeHtml(text) {
