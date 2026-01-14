@@ -109,7 +109,7 @@ func convertTable(table TableDef) string {
 	}
 
 	// 添加引擎和字符集
-	sb.WriteString(" ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+	sb.WriteString(" ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin")
 
 	sb.WriteString(";")
 
