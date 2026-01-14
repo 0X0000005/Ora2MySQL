@@ -65,8 +65,8 @@ if exist o2m-linux (
 
 echo.
 echo 使用方法：
-echo   [命令模式]: o2m.exe -i input.sql -o output.sql
-echo   [Web 模式]:  o2m.exe -web -port 8080
-echo   [帮助信息]:  o2m.exe -h
+echo   命令模式: o2m.exe -i input.sql -o output.sql
+echo   Web 模式:  o2m.exe -web -port 8080
+echo   帮助信息:  o2m.exe -h
 echo.
 echo ========================================
