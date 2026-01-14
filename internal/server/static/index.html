@@ -226,6 +226,19 @@
             word-wrap: break-word;
         }
 
+        /* Diff highlighting styles */
+        .line-modified {
+            background-color: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding-left: 8px;
+            display: block;
+        }
+
+        .line-unchanged {
+            color: #666;
+            display: block;
+        }
+
         .alert {
             padding: 15px 20px;
             border-radius: 10px;
@@ -487,7 +500,12 @@
                 hideLoading();
 
                 if (data.success) {
-                    document.getElementById('mysqlOutput').textContent = data.result;
+                    const originalSQL = input;
+                    const convertedSQL = data.result;
+
+                    // Display with diff highlighting
+                    displayWithDiff(originalSQL, convertedSQL);
+
                     document.getElementById('textResult').classList.add('show');
                     showAlert('转换成功！', 'success');
                 } else {
@@ -620,6 +638,35 @@
         // 隐藏加载动画
         function hideLoading() {
             document.getElementById('loading').classList.remove('show');
+        }
+
+        // 显示差异高亮
+        function displayWithDiff(original, converted) {
+            const originalLines = original.split('\n');
+            const convertedLines = converted.split('\n');
+            const outputElement = document.getElementById('mysqlOutput');
+
+            // Simple line-by-line comparison
+            let htmlOutput = '';
+            convertedLines.forEach((line, index) => {
+                const originalLine = originalLines[index] || '';
+                const isModified = line.trim() !== originalLine.trim() && line.trim() !== '';
+
+                if (isModified) {
+                    htmlOutput += `<span class="line-modified" title="已修改">${escapeHtml(line)}\n</span>`;
+                } else {
+                    htmlOutput += `<span class="line-unchanged">${escapeHtml(line)}\n</span>`;
+                }
+            });
+
+            outputElement.innerHTML = htmlOutput;
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
