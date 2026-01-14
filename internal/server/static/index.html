@@ -96,21 +96,42 @@
             color: #555;
         }
 
-        textarea {
-            width: 100%;
-            min-height: 300px;
-            padding: 15px;
+        .textarea-wrapper {
+            position: relative;
+            display: flex;
             border: 2px solid #e0e0e0;
             border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            resize: vertical;
+            overflow: hidden;
             transition: border-color 0.3s ease;
         }
 
-        textarea:focus {
-            outline: none;
+        .textarea-wrapper:focus-within {
             border-color: #667eea;
+        }
+
+        .line-numbers {
+            background: #f5f5f5;
+            padding: 15px 10px;
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #999;
+            user-select: none;
+            min-width: 40px;
+            overflow: hidden;
+            line-height: 1.5;
+        }
+
+        textarea {
+            flex: 1;
+            min-height: 300px;
+            padding: 15px;
+            border: none;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            line-height: 1.5;
+            outline: none;
         }
 
         .file-upload {
@@ -390,8 +411,11 @@
             <div id="text-tab" class="tab-content active">
                 <div class="input-group">
                     <label for="oracleInput">输入 Oracle DDL 语句：</label>
-                    <textarea id="oracleInput"
-                        placeholder="粘贴 Oracle DDL 语句到这里...&#10;&#10;示例：&#10;CREATE TABLE users (&#10;  user_id NUMBER(10) PRIMARY KEY,&#10;  username VARCHAR2(50) NOT NULL&#10;);"></textarea>
+                    <div class="textarea-wrapper">
+                        <div class="line-numbers" id="lineNumbers">1</div>
+                        <textarea id="oracleInput"
+                            placeholder="粘贴 Oracle DDL 语句到这里...&#10;&#10;示例：&#10;CREATE TABLE users (&#10;  user_id NUMBER(10) PRIMARY KEY,&#10;  username VARCHAR2(50) NOT NULL&#10;);"></textarea>
+                    </div>
                 </div>
 
                 <div class="button-group">
@@ -453,6 +477,29 @@
 
     <script>
         let currentFile = null;
+
+        // 更新行号
+        function updateLineNumbers() {
+            const textarea = document.getElementById('oracleInput');
+            const lineNumbers = document.getElementById('lineNumbers');
+            const lines = textarea.value.split('\n');
+            const lineCount = lines.length;
+
+            let numbers = '';
+            for (let i = 1; i <= lineCount; i++) {
+                numbers += i + '\n';
+            }
+            lineNumbers.textContent = numbers;
+        }
+
+        // 同步滚动
+        document.getElementById('oracleInput').addEventListener('scroll', function () {
+            document.getElementById('lineNumbers').scrollTop = this.scrollTop;
+        });
+
+        // 监听输入变化
+        document.getElementById('oracleInput').addEventListener('input', updateLineNumbers);
+        document.getElementById('oracleInput').addEventListener('paste', () => setTimeout(updateLineNumbers, 10));
 
         // 切换选项卡
         function switchTab(tabName) {
