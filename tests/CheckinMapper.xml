@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.checkinsystem.mapper.CheckinMapper">
+
+    <!-- Oracle CLOB/BLOB数据类型处理 -->
+    <resultMap id="CheckinResultMap" type="com.example.checkinsystem.entity.CheckinLog">
+        <id column="CHECKIN_ID" property="id" jdbcType="NUMERIC"/>
+        <result column="USER_ID" property="userId" jdbcType="NUMERIC"/>
+        <result column="CHECKIN_DATE" property="checkinDate" jdbcType="TIMESTAMP"/>
+        <result column="LOCATION_INFO" property="locationInfo" jdbcType="CLOB"/>  <!-- Oracle CLOB类型 -->
+        <result column="STATUS" property="status" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        CHECKIN_ID, USER_ID, CHECKIN_DATE, LOCATION_INFO, STATUS
+    </sql>
+
+    <!-- Oracle时间戳与毫秒处理 -->
+    <select id="getRecentCheckins" resultType="map">
+        SELECT 
+            c.CHECKIN_ID,
+            u.USERNAME,
+            c.CHECKIN_DATE,
+            CAST(c.CHECKIN_DATE AS TIMESTAMP(6)) AS PRECISE_CHECKIN_TIME,  <!-- Oracle高精度时间戳 -->
+            c.LOCATION_INFO
+        FROM T_CHECKIN_LOG c
+        JOIN T_USER u ON c.USER_ID = u.USER_ID
+        WHERE c.CHECKIN_DATE >= SYSTIMESTAMP - INTERVAL '7' DAY  <!-- Oracle时间间隔操作 -->
+        ORDER BY c.CHECKIN_DATE DESC
+    </select>
+
+    <!-- Oracle分析函数：计算连续签到天数 -->
+    <select id="getContinuousCheckinStats" resultType="map">
+        <![CDATA[
+        SELECT 
+            USER_ID,
+            USERNAME,
+            CONTINUOUS_DAYS,
+            ROW_NUMBER() OVER (ORDER BY CONTINUOUS_DAYS DESC) AS RANKING
+        FROM (
+            SELECT 
+                c.USER_ID,
+                u.USERNAME,
+                COUNT(*) AS CONTINUOUS_DAYS
+            FROM (
+                SELECT 
+                    USER_ID,
+                    CHECKIN_DATE,
+                    CHECKIN_DATE - ROW_NUMBER() OVER (PARTITION BY USER_ID ORDER BY CHECKIN_DATE) * INTERVAL '1' DAY AS GRP
+                FROM T_CHECKIN_LOG
+                WHERE CHECKIN_DATE >= SYSDATE - 30
+            ) c
+            JOIN T_USER u ON c.USER_ID = u.USER_ID
+            GROUP BY c.USER_ID, u.USERNAME, c.GRP
+            HAVING COUNT(*) > 1
+        )
+        WHERE ROWNUM <= 10
+        ]]>
+    </select>
+
+    <!-- Oracle层次查询：签到地点层级统计 -->
+    <select id="getLocationHierarchicalStats" resultType="map">
+        SELECT 
+            LOCATION_LVL,
+            LOCATION_NAME,
+            CHECKIN_COUNT,
+            PERCENTAGE
+        FROM (
+            SELECT 
+                LEVEL AS LOCATION_LVL,
+                LOCATION_NAME,
+                COUNT(*) AS CHECKIN_COUNT,
+                ROUND(RATIO_TO_REPORT(COUNT(*)) OVER () * 100, 2) AS PERCENTAGE  <!-- Oracle比率函数 -->
+            FROM T_CHECKIN_LOG
+            START WITH PARENT_LOCATION_ID IS NULL
+            CONNECT BY PRIOR LOCATION_ID = PARENT_LOCATION_ID
+            GROUP BY LEVEL, LOCATION_NAME
+            ORDER SIBLINGS BY CHECKIN_COUNT DESC
+        )
+        WHERE LEVEL <= 3
+    </select>
+
+    <!-- Oracle高级聚合函数 -->
+    <select id="getAdvancedCheckinAnalytics" resultType="map">
+        SELECT 
+            STAT_DATE,
+            TOTAL_CHECKINS,
+            AVG_CHECKINS_PER_USER,
+            MEDIAN_CHECKINS,  <!-- Oracle中位数函数 -->
+            MODE_CHECKINS,    <!-- Oracle众数函数 -->
+            STDDEV_POP(CHECKINS) AS STDDEV_CHECKINS  <!-- Oracle总体标准差 -->
+        FROM (
+            SELECT 
+                TRUNC(CHECKIN_DATE) AS STAT_DATE,
+                COUNT(*) AS CHECKINS,
+                COUNT(DISTINCT USER_ID) AS USERS
+            FROM T_CHECKIN_LOG
+            WHERE CHECKIN_DATE >= ADD_MONTHS(SYSDATE, -6)
+            GROUP BY TRUNC(CHECKIN_DATE)
+        )
+        GROUP BY STAT_DATE
+        MODEL 
+            DIMENSION BY (STAT_DATE)
+            MEASURES (
+                CHECKINS AS TOTAL_CHECKINS,
+                CASE WHEN USERS > 0 THEN CHECKINS/USERS ELSE 0 END AS AVG_CHECKINS_PER_USER,
+                0 AS MEDIAN_CHECKINS,
+                0 AS MODE_CHECKINS
+            )
+            RULES (
+                MEDIAN_CHECKINS[ANY] = MEDIAN(CHECKINS)[CV()],
+                MODE_CHECKINS[ANY] = STATS_MODE(CHECKINS)[CV()]
+            )
+        ORDER BY STAT_DATE DESC
+    </select>
+
+    <!-- Oracle物化视图刷新示例 -->
+    <update id="refreshMaterializedView">
+        BEGIN
+            DBMS_MVIEW.REFRESH('MV_USER_CHECKIN_STATS', 'C');  <!-- Oracle物化视图刷新 -->
+        EXCEPTION
+            WHEN OTHERS THEN
+                RAISE_APPLICATION_ERROR(-20001, 'MV刷新失败: ' || SQLERRM);
+        END;
+    </update>
+
+    <!-- Oracle高级PL/SQL块调用 -->
+    <select id="executeComplexProcedure" statementType="CALLABLE">
+        {CALL PKG_CHECKIN_ANALYTICS.SP_CALCULATE_USER_REWARDS(
+            #{userId, mode=IN, jdbcType=NUMERIC},
+            #{rewardPoints, mode=OUT, jdbcType=NUMERIC},
+            #{rewardLevel, mode=OUT, jdbcType=VARCHAR}
+        )}
+    </select>
+
+    <!-- Oracle分区表查询 -->
+    <select id="getCheckinsFromPartition" resultType="map">
+        SELECT 
+            CHECKIN_ID,
+            USER_ID,
+            CHECKIN_DATE,
+            LOCATION_INFO
+        FROM T_CHECKIN_LOG PARTITION(P_2023_01)  <!-- Oracle分区表查询 -->
+        WHERE USER_ID = #{userId}
+        AND CHECKIN_DATE BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') 
+                           AND TO_DATE(#{endDate}, 'YYYY-MM-DD')
+    </select>
+
+    <!-- Oracle闪回查询（如果启用） -->
+    <select id="getHistoricalData" resultType="map">
+        SELECT 
+            CHECKIN_ID,
+            USER_ID,
+            CHECKIN_DATE
+        FROM T_CHECKIN_LOG AS OF TIMESTAMP(SYSTIMESTAMP - INTERVAL '#{hours}' HOUR)  <!-- Oracle闪回查询 -->
+        WHERE USER_ID = #{userId}
+    </select>
+
+</mapper>

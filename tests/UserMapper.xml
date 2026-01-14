@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.checkinsystem.mapper.UserMapper">
+
+    <!-- 结果映射 -->
+    <resultMap id="BaseResultMap" type="com.example.checkinsystem.entity.User">
+        <id column="USER_ID" property="id" jdbcType="NUMERIC"/>
+        <result column="USERNAME" property="username" jdbcType="VARCHAR"/>
+        <result column="EMAIL" property="email" jdbcType="VARCHAR"/>
+        <result column="CREATED_DATE" property="createdDate" jdbcType="TIMESTAMP"/>
+        <result column="LAST_LOGIN_TIME" property="lastLoginTime" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <!-- 基础列 -->
+    <sql id="Base_Column_List">
+        USER_ID, USERNAME, EMAIL, CREATED_DATE, LAST_LOGIN_TIME
+    </sql>
+
+    <!-- Oracle分页查询 - 使用ROW_NUMBER() -->
+    <select id="selectUserByPage" resultMap="BaseResultMap">
+        SELECT 
+            <include refid="Base_Column_List"/>
+        FROM (
+            SELECT 
+                <include refid="Base_Column_List"/>,
+                ROW_NUMBER() OVER (ORDER BY USER_ID) AS RN
+            FROM T_USER
+            WHERE 1=1
+            <if test="username != null and username != ''">
+                AND USERNAME LIKE '%' || #{username} || '%'
+            </if>
+        ) 
+        WHERE RN BETWEEN #{startRow} AND #{endRow}
+    </select>
+
+    <!-- Oracle序列获取下一个值 -->
+    <select id="getNextUserId" resultType="java.lang.Long">
+        SELECT USER_SEQ.NEXTVAL FROM DUAL
+    </select>
+
+    <!-- 批量插入 - Oracle特有语法 -->
+    <insert id="batchInsertUsers" parameterType="java.util.List">
+        INSERT ALL
+        <foreach collection="list" item="item" separator=" ">
+            INTO T_USER (USER_ID, USERNAME, EMAIL, CREATED_DATE, LAST_LOGIN_TIME) 
+            VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.createdDate}, #{item.lastLoginTime})
+        </foreach>
+        SELECT * FROM DUAL
+    </insert>
+
+    <!-- Oracle MERGE语句 - 类似于UPSERT操作 -->
+    <update id="mergeUser" parameterType="com.example.checkinsystem.entity.User">
+        MERGE INTO T_USER t1
+        USING (SELECT #{id} AS USER_ID, #{username} AS USERNAME, #{email} AS EMAIL, 
+                      #{createdDate} AS CREATED_DATE, #{lastLoginTime} AS LAST_LOGIN_TIME FROM DUAL) t2
+        ON (t1.USER_ID = t2.USER_ID)
+        WHEN MATCHED THEN
+            UPDATE SET 
+                USERNAME = t2.USERNAME,
+                EMAIL = t2.EMAIL,
+                LAST_LOGIN_TIME = t2.LAST_LOGIN_TIME
+        WHEN NOT MATCHED THEN
+            INSERT (USER_ID, USERNAME, EMAIL, CREATED_DATE, LAST_LOGIN_TIME)
+            VALUES (t2.USER_ID, t2.USERNAME, t2.EMAIL, t2.CREATED_DATE, t2.LAST_LOGIN_TIME)
+    </update>
+
+    <!-- 使用Oracle的CONNECT BY进行树形结构查询 -->
+    <select id="getUserHierarchy" resultMap="BaseResultMap">
+        SELECT 
+            <include refid="Base_Column_List"/>
+        FROM T_USER
+        START WITH USER_ID = #{rootId}
+        CONNECT BY PRIOR USER_ID = PARENT_USER_ID
+        ORDER SIBLINGS BY USER_ID
+    </select>
+
+    <!-- Oracle日期函数示例 -->
+    <select id="findUsersByRegistrationPeriod" resultMap="BaseResultMap">
+        SELECT 
+            <include refid="Base_Column_List"/>
+        FROM T_USER
+        WHERE CREATED_DATE >= TO_DATE(#{startDate}, 'YYYY-MM-DD')
+          AND CREATED_DATE < TO_DATE(#{endDate}, 'YYYY-MM-DD') + 1
+          AND TO_CHAR(CREATED_DATE, 'YYYYMM') = TO_CHAR(SYSDATE, 'YYYYMM')  <!-- 当月注册用户 -->
+    </select>
+
+    <!-- Oracle正则表达式示例 -->
+    <select id="findValidEmailUsers" resultMap="BaseResultMap">
+        SELECT 
+            <include refid="Base_Column_List"/>
+        FROM T_USER
+        WHERE REGEXP_LIKE(EMAIL, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    </select>
+
+    <!-- Oracle游标处理复杂查询 -->
+    <select id="getUsersWithRanking" resultType="map">
+        <![CDATA[
+        SELECT 
+            USERNAME,
+            EMAIL,
+            RANKING
+        FROM (
+            SELECT 
+                USERNAME,
+                EMAIL,
+                ROW_NUMBER() OVER (ORDER BY CREATED_DATE DESC) AS RANKING
+            FROM T_USER
+            WHERE CREATED_DATE >= SYSDATE - 30  -- 最近30天注册的用户
+        )
+        WHERE RANKING <= 10  -- 只取前10名
+        ]]>
+    </select>
+
+    <!-- Oracle多表连接与子查询结合 -->
+    <select id="getUserWithCheckinStats" resultType="map">
+        SELECT 
+            u.USER_ID,
+            u.USERNAME,
+            u.EMAIL,
+            NVL(cs.CHECKIN_COUNT, 0) AS CHECKIN_COUNT,
+            cs.LAST_CHECKIN_DATE
+        FROM T_USER u
+        LEFT JOIN (
+            SELECT 
+                USER_ID,
+                COUNT(*) AS CHECKIN_COUNT,
+                MAX(CHECKIN_DATE) AS LAST_CHECKIN_DATE
+            FROM T_CHECKIN_LOG
+            WHERE CHECKIN_DATE >= ADD_MONTHS(SYSDATE, -3)  <!-- 最近3个月 -->
+            GROUP BY USER_ID
+        ) cs ON u.USER_ID = cs.USER_ID
+        WHERE u.USER_ID IN 
+        (
+            SELECT /*+ FIRST_ROWS(10) */ USER_ID 
+            FROM T_USER 
+            WHERE ROWNUM <= 100  <!-- Oracle特有的ROWNUM优化提示 -->
+        )
+        ORDER BY cs.CHECKIN_COUNT DESC NULLS LAST
+    </select>
+
+</mapper>
