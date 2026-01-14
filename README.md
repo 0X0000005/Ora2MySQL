@@ -1,4 +1,4 @@
-# Ora2MySQL
+# Ora2MySQL - Oracle 转 MySQL DDL 工具
 
 这是一个用 Go 语言编写的命令行工具，用于将 Oracle DDL 语句转换为 MySQL 兼容的 DDL 语句。
 
@@ -13,6 +13,7 @@
 - ✅ 支持块注释（`/* ... */`）的正确解析
 - ✅ 支持 ALTER TABLE MODIFY 语句（修改列约束）
 - ✅ 智能输入验证（拒绝非法输入，兼容 MyBatis 文件）
+- ✅ 全中文注释
 
 ## 数据类型转换对照表
 
@@ -27,6 +28,55 @@
 | TIMESTAMP | DATETIME | 时间戳 |
 | CLOB | LONGTEXT | 大文本 |
 | BLOB | LONGBLOB | 大二进制对象 |
+
+## Oracle 函数转换对照表
+
+### 一、伪表
+| Oracle | MySQL | 说明 |
+|--------|-------|------|
+| DUAL | ❌ 删除 | MySQL 不需要 DUAL 表 |
+| ROWNUM | LIMIT | 简单场景自动转换 |
+
+### 二、字符串函数
+| Oracle | MySQL | 说明 |
+|--------|-------|------|
+| SUBSTR() | SUBSTRING() | 子字符串 |
+| INSTR(str, substr) | LOCATE(substr, str) | 注意参数顺序相反 |
+| LENGTH() | CHAR_LENGTH() | 字符串长度 |
+| LPAD() | LPAD() | 左填充 |
+| RPAD() | RPAD() | 右填充 |
+| TRIM() | TRIM() | 去除空格 |
+| `||`（连接符） | CONCAT() | 字符串连接 |
+
+### 三、日期/时间函数
+| Oracle | MySQL | 说明 |
+|--------|-------|------|
+| SYSDATE | CURRENT_TIMESTAMP | 系统日期时间 |
+| SYSTIMESTAMP | CURRENT_TIMESTAMP | 系统时间戳 |
+| TRUNC(date) | DATE(date) | 截取日期 |
+| ADD_MONTHS(d,n) | DATE_ADD(d, INTERVAL n MONTH) | 增加月份 |
+| MONTHS_BETWEEN(d1,d2) | TIMESTAMPDIFF(MONTH,d2,d1) | 月份差 |
+| LAST_DAY(d) | LAST_DAY(d) | 月末日期 |
+
+### 四、空值/判断函数
+| Oracle | MySQL | 说明 |
+|--------|-------|------|
+| NVL(a,b) | IFNULL(a,b) | 空值替换 |
+| NVL2(a,b,c) | IF(a IS NOT NULL,b,c) | 非空判断 |
+| DECODE(a,1,'A',2,'B','C') | CASE a WHEN 1 THEN 'A' WHEN 2 THEN 'B' ELSE 'C' END | 条件分支 |
+
+### 五、系统函数
+| Oracle | MySQL | 说明 |
+|--------|-------|------|
+| USER | CURRENT_USER() | 当前用户 |
+| UID | USER() | 用户ID |
+| SYS_GUID() | UUID() | 全局唯一标识符 |
+
+### 六、聚合函数
+| Oracle | MySQL | 说明 |
+|--------|-------|------|
+| LISTAGG(col, sep) | GROUP_CONCAT(col SEPARATOR sep) | 字符串聚合 |
+
 
 ## 编译
 

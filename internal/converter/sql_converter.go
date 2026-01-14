@@ -97,7 +97,7 @@ func convertOracleFunctions(sql string) string {
 	result = regexp.MustCompile(`(?i)\bNVL\s*\(`).ReplaceAllString(result, "IFNULL(")
 
 	// NVL2(expr, val1, val2) → IF(expr IS NOT NULL, val1, val2)
-	// 这个比较复杂，暂时保留 NVL2，需要手动处理
+	result = convertNVL2(result)
 
 	// TO_CHAR(date, format) → DATE_FORMAT(date, format)
 	// 需要转换日期格式字符串
@@ -112,8 +112,8 @@ func convertOracleFunctions(sql string) string {
 	// INSTR(str, substr) → LOCATE(substr, str) - 注意参数顺序相反
 	result = convertInstr(result)
 
-	// LENGTH → CHAR_LENGTH 或 LENGTH（MySQL 两者都支持）
-	// 保持不变
+	// LENGTH → CHAR_LENGTH
+	result = regexp.MustCompile(`(?i)\bLENGTH\s*\(`).ReplaceAllString(result, "CHAR_LENGTH(")
 
 	// TRUNC(date) → DATE(date)
 	result = regexp.MustCompile(`(?i)\bTRUNC\s*\(\s*([^,)]+)\s*\)`).ReplaceAllString(result, "DATE($1)")
@@ -128,6 +128,20 @@ func convertOracleFunctions(sql string) string {
 	// ADD_MONTHS(date, n) → DATE_ADD(date, INTERVAL n MONTH)
 	result = regexp.MustCompile(`(?i)\bADD_MONTHS\s*\(\s*([^,]+),\s*([^)]+)\)`).
 		ReplaceAllString(result, "DATE_ADD($1, INTERVAL $2 MONTH)")
+
+	// System functions
+	// USER → CURRENT_USER()
+	result = regexp.MustCompile(`(?i)\bUSER\b`).ReplaceAllString(result, "CURRENT_USER()")
+
+	// UID → USER()
+	result = regexp.MustCompile(`(?i)\bUID\b`).ReplaceAllString(result, "USER()")
+
+	// SYS_GUID() → UUID()
+	result = regexp.MustCompile(`(?i)\bSYS_GUID\s*\(\s*\)`).ReplaceAllString(result, "UUID()")
+
+	// Aggregation functions
+	// LISTAGG → GROUP_CONCAT
+	result = convertListagg(result)
 
 	return result
 }
@@ -272,4 +286,36 @@ func convertOracleJoins(sql string) string {
 	// TODO: 实现复杂的 JOIN 转换
 
 	return sql
+}
+
+// convertNVL2 转换 NVL2 函数
+func convertNVL2(sql string) string {
+	// NVL2(expr, val1, val2) → IF(expr IS NOT NULL, val1, val2)
+	re := regexp.MustCompile(`(?i)NVL2\s*\(\s*([^,]+),\s*([^,]+),\s*([^)]+)\)`)
+	return re.ReplaceAllStringFunc(sql, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if len(parts) >= 4 {
+			expr := strings.TrimSpace(parts[1])
+			val1 := strings.TrimSpace(parts[2])
+			val2 := strings.TrimSpace(parts[3])
+			return fmt.Sprintf("IF(%s IS NOT NULL, %s, %s)", expr, val1, val2)
+		}
+		return match
+	})
+}
+
+// convertListagg 转换 LISTAGG 函数
+func convertListagg(sql string) string {
+	// LISTAGG(column, separator) WITHIN GROUP (ORDER BY ...) → GROUP_CONCAT(column ORDER BY ... SEPARATOR separator)
+	// 简化版本：LISTAGG(column, separator) → GROUP_CONCAT(column SEPARATOR separator)
+	re := regexp.MustCompile(`(?i)LISTAGG\s*\(\s*([^,]+),\s*([^)]+)\)`)
+	return re.ReplaceAllStringFunc(sql, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if len(parts) >= 3 {
+			column := strings.TrimSpace(parts[1])
+			separator := strings.TrimSpace(parts[2])
+			return fmt.Sprintf("GROUP_CONCAT(%s SEPARATOR %s)", column, separator)
+		}
+		return match
+	})
 }
