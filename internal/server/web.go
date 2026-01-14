@@ -40,8 +40,9 @@ type LoginRequest struct {
 }
 
 const (
-	AuthCookieName  = "o2m_session"
-	AuthCookieValue = "auth_v2_20260113_v1" // 更新版本以使旧 Cookie 失效
+	AuthCookieName = "o2m_session"
+	// AuthCookieValue 基于版本号，每次更新版本后自动失效旧 session
+	AuthCookieValue = "auth_" + Version
 	HardcodedUser   = "cdfh"
 	HardcodedPass   = "cdfh@2026!"
 )
