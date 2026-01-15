@@ -264,7 +264,9 @@ func convertConstraint(constraint Constraint) string {
 	switch constraint.Type {
 	case "PRIMARY KEY":
 		if constraint.Name != "" {
-			sb.WriteString(fmt.Sprintf("CONSTRAINT %s ", constraint.Name))
+			// 为主键添加 _pk 后缀（如果尚未包含）
+			constraintName := ensureSuffix(constraint.Name, "_pk")
+			sb.WriteString(fmt.Sprintf("CONSTRAINT %s ", constraintName))
 		}
 		sb.WriteString("PRIMARY KEY (")
 		sb.WriteString(strings.Join(constraint.Columns, ", "))
@@ -284,7 +286,9 @@ func convertConstraint(constraint Constraint) string {
 
 	case "UNIQUE":
 		if constraint.Name != "" {
-			sb.WriteString(fmt.Sprintf("CONSTRAINT %s ", constraint.Name))
+			// 为唯一索引添加 _uk 后缀（如果尚未包含）
+			constraintName := ensureSuffix(constraint.Name, "_uk")
+			sb.WriteString(fmt.Sprintf("CONSTRAINT %s ", constraintName))
 		}
 		sb.WriteString("UNIQUE (")
 		sb.WriteString(strings.Join(constraint.Columns, ", "))
@@ -307,13 +311,19 @@ func convertConstraint(constraint Constraint) string {
 func convertIndex(index IndexDef) string {
 	var sb strings.Builder
 
+	// 根据索引类型添加相应后缀
+	indexName := index.Name
 	if index.Unique {
+		// 唯一索引添加 _uk 后缀（如果尚未包含）
+		indexName = ensureSuffix(indexName, "_uk")
 		sb.WriteString("CREATE UNIQUE INDEX ")
 	} else {
+		// 普通索引添加 _idx 后缀（如果尚未包含）
+		indexName = ensureSuffix(indexName, "_idx")
 		sb.WriteString("CREATE INDEX ")
 	}
 
-	sb.WriteString(index.Name)
+	sb.WriteString(indexName)
 	sb.WriteString(" ON ")
 	sb.WriteString(index.Table)
 	sb.WriteString(" (")
@@ -321,6 +331,14 @@ func convertIndex(index IndexDef) string {
 	sb.WriteString(");")
 
 	return sb.String()
+}
+
+// ensureSuffix 确保字符串以指定后缀结尾（如果尚未包含）
+func ensureSuffix(name, suffix string) string {
+	if !strings.HasSuffix(name, suffix) {
+		return name + suffix
+	}
+	return name
 }
 
 // 辅助函数：转义单引号
