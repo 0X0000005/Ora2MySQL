@@ -49,6 +49,9 @@ const (
 
 // StartWebServer 启动 Web 服务器
 func StartWebServer(port int) error {
+	// 静态文件路由
+	http.HandleFunc("/sql-formatter.js", handleStaticFile)
+
 	// 页面路由
 	http.HandleFunc("/", handleIndex)
 	http.HandleFunc("/login", handleLoginPage)
@@ -275,4 +278,29 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(result))
 
 	log.Printf("文件转换成功: %s -> %s", originalName, outputName)
+}
+
+// handleStaticFile 处理静态文件请求
+func handleStaticFile(w http.ResponseWriter, r *http.Request) {
+	// 从URL路径中获取文件名
+	filename := r.URL.Path[1:] // 移除开头的 /
+
+	// 从嵌入的文件系统读取文件
+	data, err := staticFiles.ReadFile("static/" + filename)
+	if err != nil {
+		log.Printf("[错误] 读取静态文件失败 %s: %v", filename, err)
+		http.Error(w, "文件未找到", http.StatusNotFound)
+		return
+	}
+
+	// 根据文件扩展名设置Content-Type
+	contentType := "application/javascript"
+	if strings.HasSuffix(filename, ".css") {
+		contentType = "text/css"
+	} else if strings.HasSuffix(filename, ".js") {
+		contentType = "application/javascript"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Write(data)
 }

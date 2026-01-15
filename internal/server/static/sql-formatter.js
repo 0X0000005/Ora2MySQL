@@ -159,3 +159,25 @@ function highlightOutput() {
         showAlert('高亮失败: ' + error.message, 'error');
     }
 }
+
+function highlightInput() {
+    const textarea = document.getElementById('oracleInput');
+    const sql = textarea.value.trim();
+
+    if (!sql) {
+        showAlert('请先输入 SQL 语句', 'error');
+        return;
+    }
+
+    try {
+        // 注意：对于 textarea，我们不能直接应用 HTML 高亮
+        // 但我们可以先格式化，这样代码更易读
+        // 真正的高亮会在转换结果中显示
+        const formatted = SQLFormatter.format(sql);
+        textarea.value = formatted;
+        updateLineNumbers();
+        showAlert('SQL 已格式化！转换后将显示语法高亮', 'success');
+    } catch (error) {
+        showAlert('处理失败: ' + error.message, 'error');
+    }
+}

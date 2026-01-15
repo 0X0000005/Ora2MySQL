@@ -467,6 +467,7 @@
 
                 <div class="button-group">
                     <button class="btn btn-secondary" onclick="formatInput()">✨ 格式化</button>
+                    <button class="btn btn-secondary" onclick="highlightInput()">🎨 高亮</button>
                     <button class="btn btn-primary" onclick="convertText()">🔄 开始转换</button>
                     <button class="btn btn-secondary" onclick="clearText()">🗑️ 清空</button>
                 </div>
@@ -601,8 +602,8 @@
                     const originalSQL = input;
                     const convertedSQL = data.result;
 
-                    // Display with diff highlighting
-                    displayWithDiff(originalSQL, convertedSQL);
+                    // Display with SQL syntax highlighting automatically
+                    displayWithHighlight(convertedSQL);
 
                     document.getElementById('textResult').classList.add('show');
                     showAlert('转换成功！', 'success');
@@ -738,29 +739,17 @@
             document.getElementById('loading').classList.remove('show');
         }
 
-        // 显示差异高亮
-        function displayWithDiff(original, converted) {
-            const originalLines = original.split('\n');
-            const convertedLines = converted.split('\n');
+        // 显示带语法高亮的SQL
+        function displayWithHighlight(sql) {
             const outputElement = document.getElementById('mysqlOutput');
+            const lines = sql.split('\n');
 
             // 更新结果行号
-            updateResultLineNumbers(convertedLines.length);
+            updateResultLineNumbers(lines.length);
 
-            // Simple line-by-line comparison
-            let htmlOutput = '';
-            convertedLines.forEach((line, index) => {
-                const originalLine = originalLines[index] || '';
-                const isModified = line.trim() !== originalLine.trim() && line.trim() !== '';
-
-                if (isModified) {
-                    htmlOutput += `<span class="line-modified" title="已修改">${escapeHtml(line)}\n</span>`;
-                } else {
-                    htmlOutput += `<span class="line-unchanged">${escapeHtml(line)}\n</span>`;
-                }
-            });
-
-            outputElement.innerHTML = htmlOutput;
+            // 应用语法高亮
+            const highlighted = SQLHighlighter.highlight(sql);
+            outputElement.innerHTML = highlighted;
         }
 
         // 更新结果行号
