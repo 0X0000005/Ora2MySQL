@@ -76,7 +76,7 @@ func ConvertToMySQL(oracleDDL string) (string, error) {
 func convertTable(table TableDef) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", table.Name))
+	sb.WriteString(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", table.Name))
 
 	// 转换列定义
 	for i, col := range table.Columns {
