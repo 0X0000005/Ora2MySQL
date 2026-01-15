@@ -133,8 +133,10 @@ function formatOutput() {
         const formatted = SQLFormatter.format(sql);
         const lines = formatted.split('\n');
         updateResultLineNumbers(lines.length);
-        outputElement.textContent = formatted;
-        showAlert('SQL 格式化成功！', 'success');
+        // 格式化后自动应用高亮
+        const highlighted = SQLHighlighter.highlight(formatted);
+        outputElement.innerHTML = highlighted;
+        showAlert('SQL 格式化并高亮成功！', 'success');
     } catch (error) {
         showAlert('格式化失败: ' + error.message, 'error');
     }
