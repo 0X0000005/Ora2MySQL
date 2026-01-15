@@ -65,9 +65,31 @@ const SQLHighlighter = {
     highlight(sql) {
         if (!sql) return '';
 
-        let highlighted = this.escapeHtml(sql);
+        // 先保护 HTML/XML 注释和标签
+        const placeholders = {};
+        let counter = 0;
+        let result = sql;
 
-        // 高亮注释（-- 和 /* */）
+        // 保护 HTML 注释 <!-- ... -->
+        result = result.replace(/<!--[\s\S]*?-->/g, (match) => {
+            const placeholder = `___HTML_COMMENT_${counter}___`;
+            placeholders[placeholder] = match;
+            counter++;
+            return placeholder;
+        });
+
+        // 保护 XML 标签 <xxx>
+        result = result.replace(/<[^>]+>/g, (match) => {
+            const placeholder = `___XML_TAG_${counter}___`;
+            placeholders[placeholder] = match;
+            counter++;
+            return placeholder;
+        });
+
+        // 转义HTML（但保留占位符）
+        let highlighted = this.escapeHtml(result);
+
+        // 高亮SQL注释（-- 和 /* */）
         highlighted = highlighted.replace(/--([^\n]*)/g, '<span class="sql-comment">--$1</span>');
         highlighted = highlighted.replace(/\/\*([^*]|\*(?!\/))*\*\//g, '<span class="sql-comment">$&</span>');
 
@@ -88,6 +110,11 @@ const SQLHighlighter = {
             const regex = new RegExp('\\b(' + fn + ')\\b', 'gi');
             highlighted = highlighted.replace(regex, '<span class="sql-function">$1</span>');
         });
+
+        // 恢复占位符
+        for (const [placeholder, original] of Object.entries(placeholders)) {
+            highlighted = highlighted.replace(new RegExp(placeholder, 'g'), original);
+        }
 
         return highlighted;
     },

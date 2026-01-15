@@ -421,7 +421,7 @@
     <div class="container">
         <header style="position: relative;">
             <div style="position: absolute; right: 10px; top: 10px; display: flex; gap: 15px; align-items: center;">
-                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.5.4</span>
+                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.5.5</span>
                 <a href="/logout"
                     style="color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; background: rgba(0,0,0,0.2); padding: 6px 15px; border-radius: 20px; transition: all 0.3s ease;">退出登录
                     🚪</a>
@@ -756,9 +756,9 @@
             // 更新结果行号
             updateResultLineNumbers(lines.length);
 
-            // 直接显示后端返回的结果，不做额外处理
-            // 后端已经正确保护了HTML注释和MyBatis标签
-            outputElement.textContent = sql;
+            // 应用语法高亮（已修复：先保护HTML注释和XML标签）
+            const highlighted = SQLHighlighter.highlight(sql);
+            outputElement.innerHTML = highlighted;
         }
 
         // 更新结果行号
