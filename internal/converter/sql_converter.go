@@ -26,6 +26,9 @@ func ConvertSQLStatement(sql string) string {
 	// 转换 NULLS FIRST/NULLS LAST
 	converted = convertNullsOrdering(converted)
 
+	// 转换 ROWNUM 为 LIMIT
+	converted = convertROWNUM(converted)
+
 	// 恢复 MyBatis 语法
 	result := restoreMyBatisSyntax(converted, placeholders)
 
@@ -341,6 +344,61 @@ func convertNullsOrdering(sql string) string {
 
 	// NULLS FIRST (升序，MySQL 默认行为，可以简化)
 	sql = regexp.MustCompile(`(?i)(\w+)(\s+ASC)?\s+NULLS\s+FIRST`).ReplaceAllString(sql, "$1$2")
+
+	return sql
+}
+
+// convertROWNUM 转换 Oracle ROWNUM 为 MySQL LIMIT
+func convertROWNUM(sql string) string {
+	// 场景1: 子查询模式 - SELECT * FROM ( ... ) WHERE ROWNUM <= N
+	// 应该简化为: SELECT * FROM ... LIMIT N
+	subqueryPattern := regexp.MustCompile(`(?is)FROM\s*\(\s*(SELECT\s+.*?)\s*\)\s*WHERE\s+ROWNUM\s*(<=?|=)\s*(\d+)`)
+
+	sql = subqueryPattern.ReplaceAllStringFunc(sql, func(match string) string {
+		parts := subqueryPattern.FindStringSubmatch(match)
+		if len(parts) >= 4 {
+			innerSelect := parts[1]
+			operator := parts[2]
+			limit := parts[3]
+
+			// 根据操作符确定 LIMIT 值
+			var limitClause string
+			if operator == "=" && limit == "1" {
+				limitClause = "LIMIT 1"
+			} else {
+				limitClause = "LIMIT " + limit
+			}
+
+			// 简化：移除外层包装，直接在内层查询添加 LIMIT
+			// 清理多余的空白
+			innerSelect = strings.TrimSpace(innerSelect)
+			return "FROM (" + innerSelect + " " + limitClause + ")"
+		}
+		return match
+	})
+
+	// 场景2: 简单模式 - WHERE ROWNUM <= N (不在子查询中)
+	// 替换为 LIMIT N，放在语句末尾
+	simplePattern := regexp.MustCompile(`(?i)WHERE\s+ROWNUM\s*(<=?|=)\s*(\d+)`)
+
+	sql = simplePattern.ReplaceAllStringFunc(sql, func(match string) string {
+		parts := simplePattern.FindStringSubmatch(match)
+		if len(parts) >= 3 {
+			operator := parts[1]
+			limit := parts[2]
+
+			// 移除 WHERE ROWNUM，将 LIMIT 添加到语句末尾
+			var limitClause string
+			if operator == "=" && limit == "1" {
+				limitClause = "LIMIT 1"
+			} else {
+				limitClause = "LIMIT " + limit
+			}
+
+			return limitClause
+		}
+		return match
+	})
 
 	return sql
 }
