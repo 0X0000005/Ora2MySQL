@@ -41,6 +41,15 @@ func protectMyBatisSyntax(sql string) (string, map[string]string) {
 	result := sql
 	counter := 0
 
+	// 先保护 HTML/XML 注释 <!-- ... -->
+	commentRe := regexp.MustCompile(`<!--[\s\S]*?-->`)
+	result = commentRe.ReplaceAllStringFunc(result, func(match string) string {
+		placeholder := fmt.Sprintf("___HTML_COMMENT_%d___", counter)
+		placeholders[placeholder] = match
+		counter++
+		return placeholder
+	})
+
 	// 保护 #{...}
 	re1 := regexp.MustCompile(`#\{[^}]+\}`)
 	result = re1.ReplaceAllStringFunc(result, func(match string) string {
@@ -60,6 +69,7 @@ func protectMyBatisSyntax(sql string) (string, map[string]string) {
 	})
 
 	// 保护 XML 标签（如 <if>, <where>, <foreach> 等）
+	// 注意：HTML注释已经被保护了，这里只处理真正的标签
 	re3 := regexp.MustCompile(`<[^>]+>`)
 	result = re3.ReplaceAllStringFunc(result, func(match string) string {
 		// 只保护 MyBatis 标签，不保护普通文本中的 < >
@@ -68,7 +78,10 @@ func protectMyBatisSyntax(sql string) (string, map[string]string) {
 			strings.Contains(tagLower, "where") || strings.Contains(tagLower, "foreach") ||
 			strings.Contains(tagLower, "choose") || strings.Contains(tagLower, "when") ||
 			strings.Contains(tagLower, "otherwise") || strings.Contains(tagLower, "set") ||
-			strings.Contains(tagLower, "trim") || strings.Contains(tagLower, "bind") {
+			strings.Contains(tagLower, "trim") || strings.Contains(tagLower, "bind") ||
+			strings.Contains(tagLower, "select") || strings.Contains(tagLower, "insert") ||
+			strings.Contains(tagLower, "update") || strings.Contains(tagLower, "delete") ||
+			strings.Contains(tagLower, "include") || strings.Contains(tagLower, "sql") {
 			placeholder := fmt.Sprintf("___MYBATIS_TAG_%d___", counter)
 			placeholders[placeholder] = match
 			counter++
