@@ -421,7 +421,7 @@
     <div class="container">
         <header style="position: relative;">
             <div style="position: absolute; right: 10px; top: 10px; display: flex; gap: 15px; align-items: center;">
-                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.5.6</span>
+                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.5.7</span>
                 <a href="/logout"
                     style="color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; background: rgba(0,0,0,0.2); padding: 6px 15px; border-radius: 20px; transition: all 0.3s ease;">退出登录
                     🚪</a>
@@ -608,14 +608,21 @@
                 hideLoading();
 
                 if (data.success) {
+                    const originalSQL = input;
                     const convertedSQL = data.result;
 
-                    // 自动格式化并高亮显示
+                    // 计算行数变化
+                    const originalLines = originalSQL.split('\n').length;
+                    const convertedLines = convertedSQL.split('\n').length;
+                    const lineDiff = convertedLines - originalLines;
+                    const diffText = lineDiff > 0 ? `+${lineDiff}` : lineDiff < 0 ? `${lineDiff}` : '0';
+
+                    // 自动格式化并显示
                     const formatted = SQLFormatter.format(convertedSQL);
                     displayWithHighlight(formatted);
 
                     document.getElementById('textResult').classList.add('show');
-                    showAlert('转换成功！', 'success');
+                    showAlert(`转换成功！原始 ${originalLines} 行 → 转换后 ${convertedLines} 行 (${diffText})`, 'success');
                 } else {
                     showAlert('转换失败: ' + data.error, 'error');
                 }
