@@ -274,13 +274,33 @@ func parseColumnDef(def string) (ColumnDef, Constraint) {
 	// 解析数据类型
 	typeStr := parts[1]
 
-	// 处理带括号的类型，如 VARCHAR2(100) 或 NUMBER(10,2)
+	// 处理带括号的类型，如 VARCHAR2(100) 或 NUMBER(10,2) 或 VARCHAR2 (100)
+	// 注意：类型名和括号之间可能有空格
 	if strings.Contains(typeStr, "(") {
+		// 类型名后直接跟括号，如 VARCHAR2(100)
 		re := regexp.MustCompile(`([A-Z0-9_]+)\(([^)]+)\)`)
 		matches := re.FindStringSubmatch(strings.ToUpper(typeStr))
 		if len(matches) >= 3 {
 			column.DataType = matches[1]
 			params := strings.Split(matches[2], ",")
+			if len(params) >= 1 {
+				column.Length = strings.TrimSpace(params[0])
+				column.Precision = column.Length
+			}
+			if len(params) >= 2 {
+				column.Scale = strings.TrimSpace(params[1])
+			}
+		}
+	} else if len(parts) > 2 && strings.HasPrefix(parts[2], "(") {
+		// 类型名和括号之间有空格，如 VARCHAR2 (100)
+		// 提取数据类型
+		column.DataType = strings.ToUpper(typeStr)
+
+		// 查找括号内的参数
+		re := regexp.MustCompile(`\(([^)]+)\)`)
+		matches := re.FindStringSubmatch(def)
+		if len(matches) >= 2 {
+			params := strings.Split(matches[1], ",")
 			if len(params) >= 1 {
 				column.Length = strings.TrimSpace(params[0])
 				column.Precision = column.Length
