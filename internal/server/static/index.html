@@ -357,32 +357,38 @@
             line-height: 1.6;
         }
 
-        /* SQL 语法高亮样式 */
+        /* SQL 语法高亮样式 - VS Code 风格配色 */
         .sql-keyword {
-            color: #0000ff;
-            font-weight: bold;
+            color: #569CD6;
+            /* VS Code 蓝色 */
+            font-weight: 600;
         }
 
         .sql-function {
-            color: #ff00ff;
-            font-weight: bold;
+            color: #DCDCAA;
+            /* VS Code 函数黄 */
+            font-weight: 600;
         }
 
         .sql-string {
-            color: #a31515;
+            color: #CE9178;
+            /* VS Code 字符串橙红 */
         }
 
         .sql-number {
-            color: #098658;
+            color: #B5CEA8;
+            /* VS Code 数字绿 */
         }
 
         .sql-comment {
-            color: #008000;
+            color: #6A9955;
+            /* VS Code 注释灰绿 */
             font-style: italic;
         }
 
         .sql-operator {
-            color: #666;
+            color: #D4D4D4;
+            /* VS Code 运算符浅灰 */
         }
 
         @media (max-width: 768px) {
@@ -466,8 +472,6 @@
                 </div>
 
                 <div class="button-group">
-                    <button class="btn btn-secondary" onclick="formatInput()">✨ 格式化</button>
-                    <button class="btn btn-secondary" onclick="highlightInput()">🎨 高亮</button>
                     <button class="btn btn-primary" onclick="convertText()">🔄 开始转换</button>
                     <button class="btn btn-secondary" onclick="clearText()">🗑️ 清空</button>
                 </div>
@@ -477,8 +481,6 @@
                     <div class="result-header">
                         <div class="result-title">转换结果：</div>
                         <div class="button-group" style="margin: 0;">
-                            <button class="btn btn-secondary" onclick="formatOutput()">✨ 格式化</button>
-                            <button class="btn btn-secondary" onclick="highlightOutput()">🎨 高亮</button>
                             <button class="btn btn-secondary" onclick="copyResult()">📋 复制</button>
                             <button class="btn btn-primary" onclick="downloadResult()">💾 下载</button>
                         </div>
@@ -551,7 +553,14 @@
 
         // 监听输入变化
         document.getElementById('oracleInput').addEventListener('input', updateLineNumbers);
-        document.getElementById('oracleInput').addEventListener('paste', () => setTimeout(updateLineNumbers, 10));
+
+        // 监听粘贴事件，自动格式化（静默模式）
+        document.getElementById('oracleInput').addEventListener('paste', function (e) {
+            setTimeout(() => {
+                updateLineNumbers();
+                formatInput(true);  // 静默模式，不显示提示
+            }, 100);
+        });
 
         // 切换选项卡
         function switchTab(tabName) {
@@ -599,11 +608,11 @@
                 hideLoading();
 
                 if (data.success) {
-                    const originalSQL = input;
                     const convertedSQL = data.result;
 
-                    // Display with SQL syntax highlighting automatically
-                    displayWithHighlight(convertedSQL);
+                    // 自动格式化并高亮显示
+                    const formatted = SQLFormatter.format(convertedSQL);
+                    displayWithHighlight(formatted);
 
                     document.getElementById('textResult').classList.add('show');
                     showAlert('转换成功！', 'success');

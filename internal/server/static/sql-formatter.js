@@ -101,12 +101,14 @@ const SQLHighlighter = {
 
 // ============ 格式化和高亮功能 ============
 
-function formatInput() {
+function formatInput(silent = false) {
     const textarea = document.getElementById('oracleInput');
     const sql = textarea.value.trim();
 
     if (!sql) {
-        showAlert('请先输入 SQL 语句', 'error');
+        if (!silent) {
+            showAlert('请先输入 SQL 语句', 'error');
+        }
         return;
     }
 
@@ -114,70 +116,12 @@ function formatInput() {
         const formatted = SQLFormatter.format(sql);
         textarea.value = formatted;
         updateLineNumbers();
-        showAlert('SQL 格式化成功！', 'success');
+        if (!silent) {
+            showAlert('SQL 格式化成功！', 'success');
+        }
     } catch (error) {
-        showAlert('格式化失败: ' + error.message, 'error');
-    }
-}
-
-function formatOutput() {
-    const outputElement = document.getElementById('mysqlOutput');
-    const sql = outputElement.textContent.trim();
-
-    if (!sql) {
-        showAlert('没有可格式化的内容', 'error');
-        return;
-    }
-
-    try {
-        const formatted = SQLFormatter.format(sql);
-        const lines = formatted.split('\n');
-        updateResultLineNumbers(lines.length);
-        // 格式化后自动应用高亮
-        const highlighted = SQLHighlighter.highlight(formatted);
-        outputElement.innerHTML = highlighted;
-        showAlert('SQL 格式化并高亮成功！', 'success');
-    } catch (error) {
-        showAlert('格式化失败: ' + error.message, 'error');
-    }
-}
-
-function highlightOutput() {
-    const outputElement = document.getElementById('mysqlOutput');
-    const sql = outputElement.textContent.trim();
-
-    if (!sql) {
-        showAlert('没有可高亮的内容', 'error');
-        return;
-    }
-
-    try {
-        const highlighted = SQLHighlighter.highlight(sql);
-        outputElement.innerHTML = highlighted;
-        showAlert('SQL 高亮成功！', 'success');
-    } catch (error) {
-        showAlert('高亮失败: ' + error.message, 'error');
-    }
-}
-
-function highlightInput() {
-    const textarea = document.getElementById('oracleInput');
-    const sql = textarea.value.trim();
-
-    if (!sql) {
-        showAlert('请先输入 SQL 语句', 'error');
-        return;
-    }
-
-    try {
-        // 注意：对于 textarea，我们不能直接应用 HTML 高亮
-        // 但我们可以先格式化，这样代码更易读
-        // 真正的高亮会在转换结果中显示
-        const formatted = SQLFormatter.format(sql);
-        textarea.value = formatted;
-        updateLineNumbers();
-        showAlert('SQL 已格式化！转换后将显示语法高亮', 'success');
-    } catch (error) {
-        showAlert('处理失败: ' + error.message, 'error');
+        if (!silent) {
+            showAlert('格式化失败: ' + error.message, 'error');
+        }
     }
 }
