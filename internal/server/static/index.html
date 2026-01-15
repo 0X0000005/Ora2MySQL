@@ -421,7 +421,7 @@
     <div class="container">
         <header style="position: relative;">
             <div style="position: absolute; right: 10px; top: 10px; display: flex; gap: 15px; align-items: center;">
-                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.5.7</span>
+                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.6.0</span>
                 <a href="/logout"
                     style="color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; background: rgba(0,0,0,0.2); padding: 6px 15px; border-radius: 20px; transition: all 0.3s ease;">退出登录
                     🚪</a>
@@ -617,9 +617,9 @@
                     const lineDiff = convertedLines - originalLines;
                     const diffText = lineDiff > 0 ? `+${lineDiff}` : lineDiff < 0 ? `${lineDiff}` : '0';
 
-                    // 自动格式化并显示
+                    // 自动格式化并显示（带diff标记）
                     const formatted = SQLFormatter.format(convertedSQL);
-                    displayWithHighlight(formatted);
+                    displayWithHighlight(formatted, originalSQL);
 
                     document.getElementById('textResult').classList.add('show');
                     showAlert(`转换成功！原始 ${originalLines} 行 → 转换后 ${convertedLines} 行 (${diffText})`, 'success');
@@ -755,16 +755,40 @@
             document.getElementById('loading').classList.remove('show');
         }
 
-        // 显示SQL结果（纯文本，无高亮）
-        function displayWithHighlight(sql) {
+        // 显示SQL结果并标记变更行
+        function displayWithHighlight(sql, originalSQL) {
             const outputElement = document.getElementById('mysqlOutput');
-            const lines = sql.split('\n');
+
+            const originalLines = (originalSQL || '').split('\n');
+            const convertedLines = sql.split('\n');
 
             // 更新结果行号
-            updateResultLineNumbers(lines.length);
+            updateResultLineNumbers(convertedLines.length);
 
-            // 使用纯文本显示，避免与HTML注释冲突
-            outputElement.textContent = sql;
+            // 使用div包裹每一行，标记修改的行
+            let htmlOutput = '';
+            convertedLines.forEach((line, index) => {
+                const originalLine = originalLines[index] || '';
+                const isModified = line.trim() !== originalLine.trim() && line.trim() !== '';
+
+                // 转义HTML以保护特殊字符
+                const escapedLine = escapeHtmlEntities(line);
+
+                if (isModified) {
+                    htmlOutput += `<div class="line-modified" title="已修改">${escapedLine}</div>`;
+                } else {
+                    htmlOutput += `<div class="line-unchanged">${escapedLine}</div>`;
+                }
+            });
+
+            outputElement.innerHTML = htmlOutput;
+        }
+
+        // HTML实体转义函数
+        function escapeHtmlEntities(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // 更新结果行号
