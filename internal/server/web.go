@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"o2m/internal/converter"
 )
 
@@ -19,7 +21,7 @@ import (
 var staticFiles embed.FS
 
 // Version 版本号
-const Version = "v1.6.3"
+const Version = "v1.7.0"
 
 // ConvertRequest 转换请求结构
 type ConvertRequest struct {
@@ -43,8 +45,9 @@ const (
 	AuthCookieName = "o2m_session"
 	// AuthCookieValue 基于版本号，每次更新版本后自动失效旧 session
 	AuthCookieValue = "auth_" + Version
-	HardcodedUser   = "cdfh"
-	HardcodedPass   = "cdfh@2026!"
+	// 用户名和密码的 bcrypt hash（不再存储明文）
+	UsernameHash = "$2a$10$MNeiSqsyW9UxnsLMyT3jTeiWX8NjfIVQ6zjwa3uiZghzjjaRvUhLy"
+	PasswordHash = "$2a$10$dG5tPDol15cZyYPpvz5.8.ho10GdmMw2XTZSqnExKDHNyVhZXneUa"
 )
 
 // StartWebServer 启动 Web 服务器
@@ -126,8 +129,12 @@ func handleLoginApi(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == HardcodedUser && req.Password == HardcodedPass {
-		log.Printf("[成功] 登录验证通过: %s", req.Username)
+	// 使用 bcrypt 验证用户名和密码
+	usernameMatch := bcrypt.CompareHashAndPassword([]byte(UsernameHash), []byte(req.Username)) == nil
+	passwordMatch := bcrypt.CompareHashAndPassword([]byte(PasswordHash), []byte(req.Password)) == nil
+
+	if usernameMatch && passwordMatch {
+		log.Printf("[成功] 登录验证通过")
 		// 设置 Cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     AuthCookieName,
@@ -138,7 +145,7 @@ func handleLoginApi(w http.ResponseWriter, r *http.Request) {
 		})
 		json.NewEncoder(w).Encode(ConvertResponse{Success: true})
 	} else {
-		log.Printf("[失败] 登录验证失败，账号: %s", req.Username)
+		log.Printf("[失败] 登录验证失败")
 		json.NewEncoder(w).Encode(ConvertResponse{Success: false, Error: "账号或密码不正确"})
 	}
 }
