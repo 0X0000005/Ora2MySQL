@@ -34,7 +34,7 @@ func ConvertToMySQL(oracleDDL string) (string, error) {
 
 		mysqlDDL := convertTable(table)
 		result.WriteString(mysqlDDL)
-		result.WriteString("\n\n")
+		result.WriteString("\n\n\n")
 		hasContent = true
 	}
 
@@ -47,7 +47,7 @@ func ConvertToMySQL(oracleDDL string) (string, error) {
 
 		mysqlView := convertView(view)
 		result.WriteString(mysqlView)
-		result.WriteString("\n\n")
+		result.WriteString("\n\n\n")
 		hasContent = true
 	}
 
@@ -55,7 +55,7 @@ func ConvertToMySQL(oracleDDL string) (string, error) {
 	for _, index := range indexes {
 		mysqlIndex := convertIndex(index)
 		result.WriteString(mysqlIndex)
-		result.WriteString("\n\n")
+		result.WriteString("\n\n\n")
 		hasContent = true
 	}
 
