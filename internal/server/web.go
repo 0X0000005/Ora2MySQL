@@ -35,6 +35,11 @@ type ConvertResponse struct {
 	Error   string `json:"error"`   // 错误信息
 }
 
+// VersionResponse 版本响应结构
+type VersionResponse struct {
+	Version string `json:"version"` // 版本号
+}
+
 // LoginRequest 登录请求
 type LoginRequest struct {
 	Username string `json:"username"`
@@ -62,6 +67,7 @@ func StartWebServer(port int) error {
 
 	// API 路由
 	http.HandleFunc("/api/login", handleLoginApi)
+	http.HandleFunc("/api/version", handleVersion)
 	http.HandleFunc("/api/convert", handleConvert)
 	http.HandleFunc("/api/upload", handleUpload)
 
@@ -310,4 +316,15 @@ func handleStaticFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", contentType)
 	w.Write(data)
+}
+
+// handleVersion 处理版本号请求
+func handleVersion(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	resp := VersionResponse{
+		Version: Version,
+	}
+	json.NewEncoder(w).Encode(resp)
 }

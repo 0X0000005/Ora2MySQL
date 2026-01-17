@@ -1,0 +1,30 @@
+-- 1. 创建表结构
+CREATE TABLE EMPLOYEES (
+    EMP_ID          NUMBER(10)         NOT NULL,          -- 员工ID
+    FIRST_NAME      VARCHAR2(50),                         -- 名
+    LAST_NAME       VARCHAR2(50)       NOT NULL,          -- 姓
+    EMAIL           VARCHAR2(100),                        -- 邮箱
+    HIRE_DATE       DATE               DEFAULT SYSDATE,   -- 入职日期，默认为当前系统时间
+    SALARY          NUMBER(12, 2)      DEFAULT 0,         -- 薪资，默认为0
+    STATUS          CHAR(1)            DEFAULT '1',       -- 状态：1-在职, 0-离职
+    CREATE_TIME     TIMESTAMP(6)       DEFAULT CURRENT_TIMESTAMP, -- 创建时间
+    -- 定义主键约束
+    CONSTRAINT PK_EMPLOYEES PRIMARY KEY (EMP_ID)
+);
+
+-- 2. 添加表注释
+COMMENT ON TABLE EMPLOYEES IS '员工基本信息表';
+
+-- 3. 添加字段注释
+COMMENT ON COLUMN EMPLOYEES.EMP_ID IS '员工唯一标识，主键';
+COMMENT ON COLUMN EMPLOYEES.FIRST_NAME IS '员工名';
+COMMENT ON COLUMN EMPLOYEES.LAST_NAME IS '员工姓';
+COMMENT ON COLUMN EMPLOYEES.EMAIL IS '电子邮箱地址';
+COMMENT ON COLUMN EMPLOYEES.HIRE_DATE IS '入职日期';
+COMMENT ON COLUMN EMPLOYEES.SALARY IS '月薪';
+COMMENT ON COLUMN EMPLOYEES.STATUS IS '账号状态(1有效/0禁用)';
+COMMENT ON COLUMN EMPLOYEES.CREATE_TIME IS '记录创建时间';
+
+-- 4. 创建额外索引 (提升查询效率)
+CREATE INDEX IDX_EMP_EMAIL ON EMPLOYEES(EMAIL);
+CREATE INDEX IDX_EMP_HIRE_DATE ON EMPLOYEES(HIRE_DATE);

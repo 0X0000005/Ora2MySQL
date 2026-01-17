@@ -421,7 +421,7 @@
     <div class="container">
         <header style="position: relative;">
             <div style="position: absolute; right: 10px; top: 10px; display: flex; gap: 15px; align-items: center;">
-                <span style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">v1.6.3</span>
+                <span id="versionDisplay" style="color: rgba(255,255,255,0.6); font-size: 0.85rem;">加载中...</span>
                 <a href="/logout"
                     style="color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; background: rgba(0,0,0,0.2); padding: 6px 15px; border-radius: 20px; transition: all 0.3s ease;">退出登录
                     🚪</a>
@@ -531,6 +531,23 @@
 
     <script>
         let currentFile = null;
+
+        // 获取版本号
+        async function fetchVersion() {
+            try {
+                const response = await fetch('/api/version');
+                const data = await response.json();
+                if (data.version) {
+                    document.getElementById('versionDisplay').textContent = data.version;
+                }
+            } catch (error) {
+                console.error('获取版本号失败:', error);
+                document.getElementById('versionDisplay').textContent = 'v?.?.?';
+            }
+        }
+
+        // 页面加载时获取版本号
+        window.addEventListener('DOMContentLoaded', fetchVersion);
 
         // 更新行号
         function updateLineNumbers() {

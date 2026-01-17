@@ -137,10 +137,15 @@ func splitStatements(ddl string) []string {
 	lines := strings.Split(ddl, "\n")
 
 	for _, line := range lines {
+		// 移除行内注释（-- 之后的部分）
+		if idx := strings.Index(line, "--"); idx != -1 {
+			line = line[:idx]
+		}
+
 		trimmedLine := strings.TrimSpace(line)
 
-		// 跳过空行和注释
-		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "--") {
+		// 跳过空行
+		if trimmedLine == "" {
 			continue
 		}
 
