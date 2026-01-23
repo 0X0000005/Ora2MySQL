@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -66,22 +67,185 @@ func ConvertToMySQL(oracleDDL string) (string, error) {
 			return "", fmt.Errorf("illegal input: no valid SQL or MyBatis statement found")
 		}
 		converted := ConvertSQLStatement(oracleDDL)
+		// 尝试合并 INSERT 语句
+		converted = mergeInsertStatements(converted)
 		return converted, nil
 	}
 
 	return result.String(), nil
 }
 
+// mergeInsertStatements 检测并合并同一张表的多个 INSERT 语句为批量插入
+func mergeInsertStatements(sql string) string {
+	// 分割语句
+	statements := splitSQLStatements(sql)
+	if len(statements) <= 1 {
+		return sql
+	}
+
+	// 解析 INSERT 语句，按表名分组
+	type insertInfo struct {
+		tableName string
+		columns   string // 列定义部分（可选）
+		values    string // VALUES 部分
+		original  string // 原始语句
+	}
+
+	var inserts []insertInfo
+	var otherStatements []string
+
+	// 匹配 INSERT INTO table [(columns)] VALUES (...)
+	insertRe := regexp.MustCompile(`(?i)^\s*INSERT\s+INTO\s+(\S+)\s*(\([^)]*\))?\s*VALUES\s*(\(.*\))\s*;?\s*$`)
+
+	for _, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+
+		matches := insertRe.FindStringSubmatch(stmt)
+		if matches != nil {
+			inserts = append(inserts, insertInfo{
+				tableName: strings.ToLower(matches[1]),
+				columns:   matches[2],
+				values:    matches[3],
+				original:  stmt,
+			})
+		} else {
+			otherStatements = append(otherStatements, stmt)
+		}
+	}
+
+	// 如果没有足够的 INSERT 语句，或者有其他语句，不合并
+	if len(inserts) < 2 || len(otherStatements) > 0 {
+		return sql
+	}
+
+	// 检查是否所有 INSERT 都是同一张表
+	firstTable := inserts[0].tableName
+	firstColumns := inserts[0].columns
+	allSameTable := true
+	allSameColumns := true
+
+	for _, ins := range inserts[1:] {
+		if ins.tableName != firstTable {
+			allSameTable = false
+			break
+		}
+		if ins.columns != firstColumns {
+			allSameColumns = false
+		}
+	}
+
+	// 只有当所有语句都是同一张表且列结构相同时才合并
+	if !allSameTable || !allSameColumns {
+		return sql
+	}
+
+	// 合并为批量 INSERT
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO ")
+	sb.WriteString(inserts[0].tableName)
+	if inserts[0].columns != "" {
+		sb.WriteString(" ")
+		sb.WriteString(inserts[0].columns)
+	}
+	sb.WriteString(" VALUES\n")
+
+	for i, ins := range inserts {
+		sb.WriteString("  ")
+		sb.WriteString(ins.values)
+		if i < len(inserts)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString(";")
+
+	return sb.String()
+}
+
+// splitSQLStatements 按分号分割 SQL 语句（简单版本）
+func splitSQLStatements(sql string) []string {
+	var result []string
+	var current strings.Builder
+	inString := false
+	stringChar := rune(0)
+
+	for _, ch := range sql {
+		if inString {
+			current.WriteRune(ch)
+			if ch == stringChar {
+				inString = false
+			}
+		} else {
+			if ch == '\'' || ch == '"' {
+				inString = true
+				stringChar = ch
+				current.WriteRune(ch)
+			} else if ch == ';' {
+				stmt := strings.TrimSpace(current.String())
+				if stmt != "" {
+					result = append(result, stmt)
+				}
+				current.Reset()
+			} else {
+				current.WriteRune(ch)
+			}
+		}
+	}
+
+	// 处理最后一个语句（可能没有分号结尾）
+	stmt := strings.TrimSpace(current.String())
+	if stmt != "" {
+		result = append(result, stmt)
+	}
+
+	return result
+}
+
 // convertTable 转换表定义
 func convertTable(table TableDef) string {
 	var sb strings.Builder
+
+	// 检查是否有主键约束
+	hasPrimaryKey := false
+	for _, constraint := range table.Constraints {
+		if constraint.Type == "PRIMARY KEY" {
+			hasPrimaryKey = true
+			break
+		}
+	}
+
+	// 如果没有主键，自动生成一个自增主键
+	if !hasPrimaryKey {
+		pkName := generatePrimaryKeyName(table.Columns)
+		// 创建自增主键列
+		pkColumn := ColumnDef{
+			Name:     pkName,
+			DataType: "BIGINT",
+			NotNull:  true,
+		}
+		// 将主键列插入到列列表的开头
+		table.Columns = append([]ColumnDef{pkColumn}, table.Columns...)
+		// 添加主键约束
+		table.Constraints = append(table.Constraints, Constraint{
+			Type:    "PRIMARY KEY",
+			Columns: []string{pkName},
+		})
+	}
 
 	sb.WriteString(fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (\n", table.Name))
 
 	// 转换列定义
 	for i, col := range table.Columns {
 		sb.WriteString("  ")
-		sb.WriteString(convertColumn(col))
+		// 检查是否是自动生成的主键列（第一列且无主键时添加的）
+		if !hasPrimaryKey && i == 0 {
+			sb.WriteString(fmt.Sprintf("%s BIGINT NOT NULL AUTO_INCREMENT", col.Name))
+		} else {
+			sb.WriteString(convertColumn(col))
+		}
 
 		// 如果不是最后一列，或者后面还有约束，添加逗号
 		if i < len(table.Columns)-1 || len(table.Constraints) > 0 {
@@ -114,6 +278,33 @@ func convertTable(table TableDef) string {
 	sb.WriteString(";")
 
 	return sb.String()
+}
+
+// generatePrimaryKeyName 生成主键列名，避免与现有列名冲突
+func generatePrimaryKeyName(columns []ColumnDef) string {
+	// 收集现有列名（转为小写进行比较）
+	existingNames := make(map[string]bool)
+	for _, col := range columns {
+		existingNames[strings.ToLower(col.Name)] = true
+	}
+
+	// 按优先级尝试主键名
+	candidates := []string{"id", "uid", "idx"}
+	for _, name := range candidates {
+		if !existingNames[name] {
+			return name
+		}
+	}
+
+	// 如果都冲突，使用带数字后缀的名称
+	for i := 1; i <= 100; i++ {
+		name := fmt.Sprintf("id_%d", i)
+		if !existingNames[name] {
+			return name
+		}
+	}
+
+	return "auto_id"
 }
 
 // convertColumn 转换列定义

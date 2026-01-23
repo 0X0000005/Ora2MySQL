@@ -659,10 +659,60 @@
 
         // 复制结果
         function copyResult() {
-            const text = document.getElementById('mysqlOutput').textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                showAlert('已复制到剪贴板！', 'success');
-            });
+            const outputElement = document.getElementById('mysqlOutput');
+            // 从每个 div 中提取纯文本，保持换行
+            const lines = outputElement.querySelectorAll('div');
+            let text = '';
+            if (lines.length > 0) {
+                lines.forEach((line, index) => {
+                    text += line.textContent;
+                    if (index < lines.length - 1) {
+                        text += '\n';
+                    }
+                });
+            } else {
+                // 如果没有 div 子元素，直接获取文本内容
+                text = outputElement.textContent;
+            }
+
+            // 使用 Clipboard API（需要 HTTPS 或 localhost）
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showAlert('已复制到剪贴板！', 'success');
+                }).catch(err => {
+                    console.error('Clipboard API 失败:', err);
+                    fallbackCopyText(text);
+                });
+            } else {
+                // 回退方案
+                fallbackCopyText(text);
+            }
+        }
+
+        // 回退复制方案（使用 execCommand）
+        function fallbackCopyText(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            textArea.style.top = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showAlert('已复制到剪贴板！', 'success');
+                } else {
+                    showAlert('复制失败，请手动复制', 'error');
+                }
+            } catch (err) {
+                console.error('execCommand 复制失败:', err);
+                showAlert('复制失败，请手动复制', 'error');
+            }
+
+            document.body.removeChild(textArea);
         }
 
         // 下载结果
