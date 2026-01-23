@@ -21,7 +21,7 @@ import (
 var staticFiles embed.FS
 
 // Version 版本号
-const Version = "v1.8.0"
+const Version = "v1.8.1"
 
 // ConvertRequest 转换请求结构
 type ConvertRequest struct {

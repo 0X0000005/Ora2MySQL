@@ -389,10 +389,12 @@ func convertDataType(oracleType, length, precision, scale string) string {
 		return "SMALLINT"
 
 	case "FLOAT":
-		return "FLOAT"
+		// FLOAT 转为 DECIMAL，避免精度问题
+		return "DECIMAL(10,2)"
 
-	case "DOUBLE":
-		return "DOUBLE"
+	case "DOUBLE", "DOUBLE PRECISION":
+		// DOUBLE 转为 DECIMAL，避免精度问题
+		return "DECIMAL(20,4)"
 
 	case "DATE":
 		// Oracle DATE 包含时间，转为 DATETIME
