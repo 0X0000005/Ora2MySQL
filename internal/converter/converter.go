@@ -76,6 +76,7 @@ func ConvertToMySQL(oracleDDL string) (string, error) {
 }
 
 // mergeInsertStatements 检测并合并同一张表的多个 INSERT 语句为批量插入
+// 支持多表情况：按表名分组后分别合并
 func mergeInsertStatements(sql string) string {
 	// 分割语句
 	statements := splitSQLStatements(sql)
@@ -89,10 +90,19 @@ func mergeInsertStatements(sql string) string {
 		columns   string // 列定义部分（可选）
 		values    string // VALUES 部分
 		original  string // 原始语句
+		order     int    // 原始顺序，用于保持表的出现顺序
 	}
 
-	var inserts []insertInfo
+	// 按表名+列结构分组
+	type tableKey struct {
+		tableName string
+		columns   string
+	}
+
+	tableInserts := make(map[tableKey][]insertInfo)
+	tableOrder := make(map[string]int) // 记录表首次出现的顺序
 	var otherStatements []string
+	orderCounter := 0
 
 	// 匹配 INSERT INTO table [(columns)] VALUES (...)
 	insertRe := regexp.MustCompile(`(?i)^\s*INSERT\s+INTO\s+(\S+)\s*(\([^)]*\))?\s*VALUES\s*(\(.*\))\s*;?\s*$`)
@@ -105,64 +115,91 @@ func mergeInsertStatements(sql string) string {
 
 		matches := insertRe.FindStringSubmatch(stmt)
 		if matches != nil {
-			inserts = append(inserts, insertInfo{
-				tableName: strings.ToLower(matches[1]),
-				columns:   matches[2],
+			tableName := strings.ToLower(matches[1])
+			columns := matches[2]
+			key := tableKey{tableName: tableName, columns: columns}
+
+			if _, exists := tableOrder[tableName]; !exists {
+				tableOrder[tableName] = orderCounter
+				orderCounter++
+			}
+
+			tableInserts[key] = append(tableInserts[key], insertInfo{
+				tableName: tableName,
+				columns:   columns,
 				values:    matches[3],
 				original:  stmt,
+				order:     tableOrder[tableName],
 			})
 		} else {
 			otherStatements = append(otherStatements, stmt)
 		}
 	}
 
-	// 如果没有足够的 INSERT 语句，或者有其他语句，不合并
-	if len(inserts) < 2 || len(otherStatements) > 0 {
+	// 如果有非 INSERT 语句，不合并（保持原样）
+	if len(otherStatements) > 0 {
 		return sql
 	}
 
-	// 检查是否所有 INSERT 都是同一张表
-	firstTable := inserts[0].tableName
-	firstColumns := inserts[0].columns
-	allSameTable := true
-	allSameColumns := true
-
-	for _, ins := range inserts[1:] {
-		if ins.tableName != firstTable {
-			allSameTable = false
-			break
-		}
-		if ins.columns != firstColumns {
-			allSameColumns = false
-		}
+	// 如果没有足够的 INSERT 语句需要合并，返回原样
+	totalInserts := 0
+	for _, inserts := range tableInserts {
+		totalInserts += len(inserts)
 	}
-
-	// 只有当所有语句都是同一张表且列结构相同时才合并
-	if !allSameTable || !allSameColumns {
+	if totalInserts < 2 {
 		return sql
 	}
 
-	// 合并为批量 INSERT
-	var sb strings.Builder
-	sb.WriteString("INSERT INTO ")
-	sb.WriteString(inserts[0].tableName)
-	if inserts[0].columns != "" {
-		sb.WriteString(" ")
-		sb.WriteString(inserts[0].columns)
+	// 按表出现顺序排序
+	type keyWithOrder struct {
+		key   tableKey
+		order int
 	}
-	sb.WriteString(" VALUES\n")
-
-	for i, ins := range inserts {
-		sb.WriteString("  ")
-		sb.WriteString(ins.values)
-		if i < len(inserts)-1 {
-			sb.WriteString(",")
+	var sortedKeys []keyWithOrder
+	for key, inserts := range tableInserts {
+		sortedKeys = append(sortedKeys, keyWithOrder{key: key, order: inserts[0].order})
+	}
+	// 简单排序（按 order 升序）
+	for i := 0; i < len(sortedKeys)-1; i++ {
+		for j := i + 1; j < len(sortedKeys); j++ {
+			if sortedKeys[i].order > sortedKeys[j].order {
+				sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+			}
 		}
-		sb.WriteString("\n")
 	}
-	sb.WriteString(";")
 
-	return sb.String()
+	// 构建结果
+	var results []string
+	for _, kwo := range sortedKeys {
+		inserts := tableInserts[kwo.key]
+		if len(inserts) >= 2 {
+			// 合并为批量 INSERT
+			var sb strings.Builder
+			sb.WriteString("INSERT INTO ")
+			sb.WriteString(inserts[0].tableName)
+			if inserts[0].columns != "" {
+				sb.WriteString(" ")
+				sb.WriteString(inserts[0].columns)
+			}
+			sb.WriteString(" VALUES\n")
+
+			for i, ins := range inserts {
+				sb.WriteString("  ")
+				sb.WriteString(ins.values)
+				if i < len(inserts)-1 {
+					sb.WriteString(",")
+				}
+				sb.WriteString("\n")
+			}
+			sb.WriteString(";")
+			results = append(results, sb.String())
+		} else {
+			// 单条 INSERT，保留原样
+			results = append(results, inserts[0].original+";")
+		}
+	}
+
+	return strings.Join(results, "\n\n")
 }
 
 // splitSQLStatements 按分号分割 SQL 语句（简单版本）
@@ -323,8 +360,13 @@ func convertColumn(col ColumnDef) string {
 		sb.WriteString(" NOT NULL")
 	}
 
-	// 默认值
-	if col.DefaultValue != "" {
+	// AUTO_INCREMENT（Oracle GENERATED AS IDENTITY 转换）
+	if col.IsAutoIncrement {
+		sb.WriteString(" AUTO_INCREMENT")
+	}
+
+	// 默认值（自增列不需要默认值）
+	if col.DefaultValue != "" && !col.IsAutoIncrement {
 		defaultVal := convertDefaultValue(col.DefaultValue)
 		sb.WriteString(fmt.Sprintf(" DEFAULT %s", defaultVal))
 	}
@@ -527,11 +569,26 @@ func convertIndex(index IndexDef) string {
 }
 
 // ensureSuffix 确保字符串以指定后缀结尾（如果尚未包含）
+// 支持大小写不敏感匹配，且检查带和不带下划线的变体
 func ensureSuffix(name, suffix string) string {
-	if !strings.HasSuffix(name, suffix) {
-		return name + suffix
+	lowerName := strings.ToLower(name)
+	lowerSuffix := strings.ToLower(suffix)
+
+	// 检查是否已经以指定后缀结尾（带下划线版本）
+	if strings.HasSuffix(lowerName, lowerSuffix) {
+		return name
 	}
-	return name
+
+	// 检查是否已经以不带下划线的后缀结尾（如 pk, uk, idx）
+	// 对于 _pk -> 检查 pk, 对于 _uk -> 检查 uk, 对于 _idx -> 检查 idx
+	if strings.HasPrefix(lowerSuffix, "_") {
+		bareSuffix := lowerSuffix[1:] // 去掉前导下划线
+		if strings.HasSuffix(lowerName, bareSuffix) {
+			return name
+		}
+	}
+
+	return name + suffix
 }
 
 // 辅助函数：转义单引号

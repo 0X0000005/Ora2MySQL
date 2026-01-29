@@ -2,14 +2,15 @@ package converter
 
 // ColumnDef 列定义结构
 type ColumnDef struct {
-	Name         string // 列名
-	DataType     string // 数据类型
-	Length       string // 长度（如果适用）
-	Precision    string // 精度（用于 NUMBER）
-	Scale        string // 小数位数（用于 NUMBER）
-	NotNull      bool   // 是否非空
-	DefaultValue string // 默认值
-	Comment      string // 列注释
+	Name            string // 列名
+	DataType        string // 数据类型
+	Length          string // 长度（如果适用）
+	Precision       string // 精度（用于 NUMBER）
+	Scale           string // 小数位数（用于 NUMBER）
+	NotNull         bool   // 是否非空
+	DefaultValue    string // 默认值
+	Comment         string // 列注释
+	IsAutoIncrement bool   // 是否自增列（Oracle GENERATED AS IDENTITY）
 }
 
 // Constraint 约束定义结构

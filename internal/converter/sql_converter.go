@@ -11,8 +11,11 @@ func ConvertSQLStatement(sql string) string {
 	// 保护 MyBatis 语法标记
 	protected, placeholders := protectMyBatisSyntax(sql)
 
+	// 转换 Oracle 序列（NEXTVAL -> NULL）
+	converted := convertOracleSequence(protected)
+
 	// 转换 Oracle 函数
-	converted := convertOracleFunctions(protected)
+	converted = convertOracleFunctions(converted)
 
 	// 转换连接运算符
 	converted = convertConcatenation(converted)
@@ -414,4 +417,16 @@ func convertROWNUM(sql string) string {
 	})
 
 	return sql
+}
+
+// convertOracleSequence 转换 Oracle 序列语法
+// SEQ_XXX.NEXTVAL, "SEQ_XXX".NEXTVAL, schema.SEQ_XXX.NEXTVAL -> NULL
+func convertOracleSequence(sql string) string {
+	// 匹配多种序列格式:
+	// 1. seq_name.nextval
+	// 2. "seq_name".nextval
+	// 3. schema.seq_name.nextval
+	// 4. schema."seq_name".nextval
+	re := regexp.MustCompile(`(?i)("?[A-Za-z_][A-Za-z0-9_]*"?\.)?("?[A-Za-z_][A-Za-z0-9_]*"?)\.NEXTVAL`)
+	return re.ReplaceAllString(sql, "NULL")
 }

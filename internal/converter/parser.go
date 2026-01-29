@@ -149,6 +149,12 @@ func splitStatements(ddl string) []string {
 			continue
 		}
 
+		// 跳过 PL/SQL prompt 命令（如 prompt Importing...、prompt off）
+		if strings.HasPrefix(strings.ToLower(trimmedLine), "prompt ") ||
+			strings.ToLower(trimmedLine) == "prompt" {
+			continue
+		}
+
 		// 添加到当前语句
 		if current.Len() > 0 {
 			current.WriteString(" ")
@@ -332,6 +338,14 @@ func parseColumnDef(def string) (ColumnDef, Constraint) {
 		column.NotNull = true
 	}
 
+	// 检查 Oracle 自增列: GENERATED [ALWAYS|BY DEFAULT [ON NULL]] AS IDENTITY
+	// 匹配模式: GENERATED ... AS IDENTITY
+	identityRe := regexp.MustCompile(`(?i)GENERATED\s+(ALWAYS|BY\s+DEFAULT(\s+ON\s+NULL)?)\s+AS\s+IDENTITY`)
+	if identityRe.MatchString(def) {
+		column.IsAutoIncrement = true
+		column.NotNull = true // 自增列隐含非空
+	}
+
 	// 检查列级 PRIMARY KEY
 	if strings.Contains(defUpper, "PRIMARY KEY") {
 		constraint.Type = "PRIMARY KEY"
@@ -340,11 +354,13 @@ func parseColumnDef(def string) (ColumnDef, Constraint) {
 		column.NotNull = true
 	}
 
-	// 提取默认值
-	defaultRe := regexp.MustCompile(`(?i)DEFAULT\s+([^\s,]+)`)
-	defaultMatches := defaultRe.FindStringSubmatch(def)
-	if len(defaultMatches) >= 2 {
-		column.DefaultValue = strings.TrimSpace(defaultMatches[1])
+	// 提取默认值（排除 GENERATED AS IDENTITY 的情况）
+	if !column.IsAutoIncrement {
+		defaultRe := regexp.MustCompile(`(?i)DEFAULT\s+([^\s,]+)`)
+		defaultMatches := defaultRe.FindStringSubmatch(def)
+		if len(defaultMatches) >= 2 {
+			column.DefaultValue = strings.TrimSpace(defaultMatches[1])
+		}
 	}
 
 	return column, constraint
