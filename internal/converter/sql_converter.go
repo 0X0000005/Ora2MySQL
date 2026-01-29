@@ -420,13 +420,19 @@ func convertROWNUM(sql string) string {
 }
 
 // convertOracleSequence 转换 Oracle 序列语法
-// SEQ_XXX.NEXTVAL, "SEQ_XXX".NEXTVAL, schema.SEQ_XXX.NEXTVAL -> NULL
+// 支持格式:
+// 1. seq_name.nextval (点分隔)
+// 2. seq xxx nextval (空格分隔，如 seq flextitle nextval)
+// 3. schema.seq_name.nextval
+// 转换为 NULL，让 MySQL 自增处理
 func convertOracleSequence(sql string) string {
-	// 匹配多种序列格式:
-	// 1. seq_name.nextval
-	// 2. "seq_name".nextval
-	// 3. schema.seq_name.nextval
-	// 4. schema."seq_name".nextval
-	re := regexp.MustCompile(`(?i)("?[A-Za-z_][A-Za-z0-9_]*"?\.)?("?[A-Za-z_][A-Za-z0-9_]*"?)\.NEXTVAL`)
-	return re.ReplaceAllString(sql, "NULL")
+	// 格式1: 点分隔格式 seq_name.nextval, "seq_name".nextval, schema.seq_name.nextval
+	dotRe := regexp.MustCompile(`(?i)("?[A-Za-z_][A-Za-z0-9_]*"?\.)?("?[A-Za-z_][A-Za-z0-9_]*"?)\.NEXTVAL`)
+	sql = dotRe.ReplaceAllString(sql, "NULL")
+
+	// 格式2: 空格分隔格式 seq xxx nextval (Oracle 特定写法)
+	spaceRe := regexp.MustCompile(`(?i)\bSEQ\s+[A-Za-z_][A-Za-z0-9_]*\s+NEXTVAL\b`)
+	sql = spaceRe.ReplaceAllString(sql, "NULL")
+
+	return sql
 }
